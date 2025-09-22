@@ -75,8 +75,9 @@ fn runReproduce(context: *const Context, seed: Seed) anyerror!void {
 
 fn trySeed(context: *const Context, seed: Seed) anyerror!void {
     var rand0 = Random.DefaultPrng.init(seed.seed);
-    var rand1 = FiniteRandom.init(rand0.random(), seed.size);
-    try context.testCase(context.context, &rand1);
+    var rand1 = FiniteRandom.Adapter.init(rand0.random(), seed.size);
+    const rand2 = &rand1.interface;
+    try context.testCase(context.context, rand2);
 }
 
 fn halfMinimizer(s: u32) u32 {
