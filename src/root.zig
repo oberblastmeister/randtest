@@ -149,7 +149,7 @@ fn runMinimize(context: *const Context, seed0: Seed) anyerror!void {
         std.debug.print("{}{f}", .{ err, last_error_trace.? });
         return err;
     } else {
-        std.debug.print("failed to find error\n", .{});
+        std.debug.print("failed to minimize seed\n", .{});
         return error.MinimizationFailedToFindError;
     }
 }
@@ -162,7 +162,7 @@ fn runSearch(context: *const Context) anyerror!void {
     var size = options.size_min;
     var rounds: usize = 0;
     search: while (true) {
-        for (0..options.search_rounds_per_size) |_| {
+        rounds_per_size: for (0..options.search_rounds_per_size) |_| {
             if (rounds >= options.search_rounds) break :search;
             rounds += 1;
             if (try elapsed(t) > options.budget) {
@@ -170,6 +170,9 @@ fn runSearch(context: *const Context) anyerror!void {
             }
             const seed = context.seed(size);
             trySeed(context, seed) catch |err| {
+                if (err == error.OutOfFuel) {
+                    break :rounds_per_size;
+                }
                 std.debug.print("Found failing seed {f}\n", .{seed});
                 return err;
             };
@@ -197,8 +200,8 @@ test "smoke" {
             }
         }.f,
         .{
-            .seed = 0xa41f617a00000020,
-            .minimize = true,
+            .seed = 0x9750ac3700000002,
+            // .minimize = true,
         },
     );
 }

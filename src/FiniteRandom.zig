@@ -22,6 +22,7 @@ pub const Adapter = struct {
                 .fillFn = &struct {
                     pub fn fillFn(self0: *FiniteRandom, buf: []u8) void {
                         const self: *Adapter = @fieldParentPtr("interface", self0);
+                        self.interface.fuel -= @as(u32, @truncate(buf.len));
                         self.random.fillFn(self.random.ptr, buf);
                     }
                 }.fillFn,
@@ -106,6 +107,12 @@ pub fn int(self: *FiniteRandom, comptime T: type) Error!T {
     return r;
 }
 
+pub fn uintLessThanBiased(self: *FiniteRandom, comptime T: type, less_than: T) Error!T {
+    const r = self.random().uintLessThanBiased(T, less_than);
+    try self.check();
+    return r;
+}
+
 pub fn uintLessThan(self: *FiniteRandom, comptime T: type, less_than: T) Error!T {
     const r = self.random().uintLessThan(T, less_than);
     try self.check();
@@ -118,8 +125,20 @@ pub fn uintAtMost(self: *FiniteRandom, comptime T: type, at_most: T) Error!T {
     return r;
 }
 
+pub fn uintAtMostBiased(self: *FiniteRandom, comptime T: type, at_most: T) Error!T {
+    const r = self.random().uintAtMostBiased(T, at_most);
+    try self.check();
+    return r;
+}
+
 pub fn intRangeLessThan(self: *FiniteRandom, comptime T: type, at_least: T, less_than: T) Error!T {
     const r = self.random().intRangeLessThan(T, at_least, less_than);
+    try self.check();
+    return r;
+}
+
+pub fn intRangeLessThanBiased(self: *FiniteRandom, comptime T: type, at_least: T, less_than: T) Error!T {
+    const r = self.random().intRangeLessThanBiased(T, at_least, less_than);
     try self.check();
     return r;
 }
