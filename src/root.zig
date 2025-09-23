@@ -1,6 +1,6 @@
 //! By convention, root.zig is the root source file when making a library.
 const std = @import("std");
-const FiniteRandom = @import("FiniteRandom.zig");
+pub const FiniteRandom = @import("FiniteRandom.zig");
 const time = std.time;
 const Random = std.Random;
 
@@ -74,7 +74,7 @@ fn runReproduce(context: *const Context, seed: Seed) anyerror!void {
 }
 
 fn trySeed(context: *const Context, seed: Seed) anyerror!void {
-    var rand0 = Random.DefaultPrng.init(seed.seed);
+    var rand0 = Random.Xoshiro256.init(seed.seed);
     var rand1 = FiniteRandom.Adapter.init(rand0.random(), seed.size);
     const rand2 = &rand1.interface;
     try context.testCase(context.context, rand2);

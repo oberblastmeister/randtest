@@ -1,4 +1,5 @@
 const std = @import("std");
+const assert = std.debug.assert;
 
 const Random = std.Random;
 
@@ -167,6 +168,137 @@ pub fn weightedIndex(self: *FiniteRandom, comptime T: type, proportions: []const
     return r;
 }
 
+pub fn chance(self: *FiniteRandom, probability: Ratio) Error!bool {
+    assert(probability.denominator > 0);
+    assert(probability.numerator <= probability.denominator);
+    return try self.uintLessThan(u64, probability.denominator) < probability.numerator;
+}
+
+/// A less than one rational number, used to specify probabilities.
+pub const Ratio = struct {
+    // Invariant: numerator ≤ denominator.
+    numerator: u64,
+    // Invariant: denominator ≠ 0.
+    denominator: u64,
+
+    pub fn zero() Ratio {
+        return .{ .numerator = 0, .denominator = 1 };
+    }
+};
+
+/// Canonical constructor for Ratio
+pub fn ratio(numerator: u64, denominator: u64) Ratio {
+    assert(denominator > 0);
+    assert(numerator <= denominator);
+    return .{ .numerator = numerator, .denominator = denominator };
+}
+
+pub const Combination = struct {
+    total: u32,
+    sample: u32,
+
+    taken: u32,
+    seen: u32,
+
+    pub fn init(options: struct {
+        total: u32,
+        sample: u32,
+    }) Combination {
+        assert(options.sample <= options.total);
+        return .{
+            .total = options.total,
+            .sample = options.sample,
+            .taken = 0,
+            .seen = 0,
+        };
+    }
+
+    pub fn done(combination: *const Combination) bool {
+        return combination.taken == combination.sample and combination.seen == combination.total;
+    }
+
+    pub fn take(combination: *Combination, rand: *FiniteRandom) Error!bool {
+        assert(combination.seen < combination.total);
+        assert(combination.taken <= combination.sample);
+
+        const n = combination.total - combination.seen;
+        const k = combination.sample - combination.taken;
+        const result = try rand.chance(ratio(k, n));
+
+        combination.seen += 1;
+        if (result) combination.taken += 1;
+        return result;
+    }
+};
+
+pub fn EnumWeightsType(E: type) type {
+    return std.enums.EnumFieldStruct(E, u64, null);
+}
+
+/// Returns a random value of an enum, where probability is proportional to weight.
+pub fn enumWeighted(prng: *FiniteRandom, Enum: type, weights: EnumWeightsType(Enum)) Error!Enum {
+    return enumWeightedImpl(prng, Enum, weights);
+}
+
+fn enumWeightedImpl(prng: *FiniteRandom, Enum: type, weights: anytype) Error!Enum {
+    const fields = @typeInfo(Enum).@"enum".fields;
+    var total: u64 = 0;
+    inline for (fields) |field| {
+        total += @field(weights, field.name);
+    }
+    assert(total > 0);
+    var pick = try prng.uintLessThan(u64, total);
+    inline for (fields) |field| {
+        const weight = @field(weights, field.name);
+        if (pick < weight) return @as(Enum, @enumFromInt(field.value));
+        pick -= weight;
+    }
+    unreachable;
+}
+
+pub fn randomEnumWeights(
+    prng: *FiniteRandom,
+    comptime Enum: type,
+) Error!EnumWeightsType(Enum) {
+    const fields = comptime std.meta.fieldNames(Enum);
+
+    var combination = Combination.init(.{
+        .total = fields.len,
+        .sample = try prng.intRangeLessThan(u32, 1, fields.len + 1),
+    });
+    defer assert(combination.done());
+
+    var weights: EnumWeightsType(Enum) = undefined;
+    inline for (fields) |field| {
+        @field(weights, field) = if (try combination.take(prng))
+            try prng.intRangeLessThan(u64, 1, 101)
+        else
+            0;
+    }
+
+    return weights;
+}
+
 test {
     std.testing.refAllDecls(@This());
+}
+
+test "smoke" {
+    const testing = std.testing;
+    const expect = testing.expect;
+    _ = expect; // autofix
+    const expectEqual = testing.expectEqual;
+
+    var rand0 = Random.Xoshiro256.init(1234);
+    var rand1 = FiniteRandom.Adapter.init(rand0.random(), std.math.maxInt(isize));
+    const rand = &rand1.interface;
+    const E = enum {
+        first,
+        second,
+        third,
+        fourth,
+    };
+    const weights = try rand.randomEnumWeights(E);
+    const e = try rand.enumWeighted(E, weights);
+    try expectEqual(.third, e);
 }
