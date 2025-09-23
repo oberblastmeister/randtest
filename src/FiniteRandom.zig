@@ -266,7 +266,6 @@ pub fn randomEnumWeights(
         .total = fields.len,
         .sample = try prng.intRangeLessThan(u32, 1, fields.len + 1),
     });
-    defer assert(combination.done());
 
     var weights: EnumWeightsType(Enum) = undefined;
     inline for (fields) |field| {
